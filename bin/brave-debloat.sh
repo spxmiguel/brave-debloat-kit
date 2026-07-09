@@ -10,6 +10,7 @@ Options:
   --profile-dir PATH       Brave profile root, e.g. ~/.config/BraveSoftware/Brave-Browser-Nightly
   --profile-name NAME      Profile directory inside the root. Default: Default
   --disable-web3           Also disable Brave Wallet/Web3 provider and remove local wallet cache.
+  --install-policy         Install Brave enterprise policy using pkexec/sudo when needed.
   --no-launcher            Do not create local low-bloat launcher and .desktop overrides.
   --dry-run                Print targets and exit before changing files.
   -h, --help               Show this help.
@@ -31,6 +32,7 @@ PROFILE_ROOT=""
 PROFILE_NAME="Default"
 DISABLE_WEB3=0
 CREATE_LAUNCHER=1
+INSTALL_POLICY=0
 DRY_RUN=0
 
 while [ "$#" -gt 0 ]; do
@@ -38,6 +40,7 @@ while [ "$#" -gt 0 ]; do
     --profile-dir) PROFILE_ROOT="${2:-}"; shift 2 ;;
     --profile-name) PROFILE_NAME="${2:-}"; shift 2 ;;
     --disable-web3) DISABLE_WEB3=1; shift ;;
+    --install-policy) INSTALL_POLICY=1; shift ;;
     --no-launcher) CREATE_LAUNCHER=0; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -71,6 +74,7 @@ STATE="$PROFILE_ROOT/Local State"
 log "profile root: $PROFILE_ROOT"
 log "profile name: $PROFILE_NAME"
 log "disable web3: $DISABLE_WEB3"
+log "install policy: $INSTALL_POLICY"
 log "launcher: $CREATE_LAUNCHER"
 
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -328,6 +332,47 @@ EOF
 
   update-desktop-database "$APP_DIR" >/dev/null 2>&1 || true
   log "launcher: $LAUNCHER"
+fi
+
+if [ "$INSTALL_POLICY" -eq 1 ]; then
+  POLICY_TMP="$(mktemp)"
+  cat > "$POLICY_TMP" <<'EOF'
+{
+  "BraveWalletDisabled": true,
+  "BraveRewardsDisabled": true,
+  "BraveTalkDisabled": true,
+  "BraveNewsDisabled": true,
+  "BraveAIChatEnabled": false,
+  "BraveP3AEnabled": false,
+  "BraveStatsPingEnabled": 0,
+  "BraveWebDiscoveryEnabled": 0,
+  "BraveVPNDisabled": true,
+  "BravePlaylistEnabled": 0,
+  "BraveSpeedreaderEnabled": 0,
+  "BraveWaybackMachineEnabled": 0,
+  "BackgroundModeEnabled": false,
+  "BrowserSignin": 0,
+  "SyncDisabled": true,
+  "DefaultNotificationsSetting": 2,
+  "DefaultGeolocationSetting": 2,
+  "NewTabPageLocation": "about:blank",
+  "HomepageLocation": "about:blank",
+  "HomepageIsNewTabPage": false,
+  "RestoreOnStartup": 5
+}
+EOF
+  if [ "$(id -u)" -eq 0 ]; then
+    mkdir -p /etc/brave/policies/managed
+    install -m 0644 -o root -g root "$POLICY_TMP" /etc/brave/policies/managed/brave-debloat.json
+  elif command -v pkexec >/dev/null 2>&1; then
+    pkexec /bin/sh -c "mkdir -p /etc/brave/policies/managed && install -m 0644 -o root -g root '$POLICY_TMP' /etc/brave/policies/managed/brave-debloat.json"
+  elif command -v sudo >/dev/null 2>&1; then
+    sudo /bin/sh -c "mkdir -p /etc/brave/policies/managed && install -m 0644 -o root -g root '$POLICY_TMP' /etc/brave/policies/managed/brave-debloat.json"
+  else
+    die "policy install requires root, pkexec, or sudo"
+  fi
+  rm -f "$POLICY_TMP"
+  log "policy: /etc/brave/policies/managed/brave-debloat.json"
 fi
 
 log "done"

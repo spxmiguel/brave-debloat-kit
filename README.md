@@ -38,12 +38,20 @@ Debloat and also disable Web3:
 ./bin/brave-debloat.sh --disable-web3
 ```
 
+Install system policy too. This is the part that removes hardcoded Brave UI
+items such as Wallet from the app menu and settings sidebar:
+
+```bash
+./bin/brave-debloat.sh --install-policy
+```
+
 Target Brave Nightly explicitly:
 
 ```bash
 ./bin/brave-debloat.sh \
   --profile-dir "$HOME/.config/BraveSoftware/Brave-Browser-Nightly" \
-  --disable-web3
+  --disable-web3 \
+  --install-policy
 ```
 
 ## What Gets Changed
@@ -61,12 +69,27 @@ Target Brave Nightly explicitly:
 - Notifications/background sync/geolocation blocked by default
 - Generated bloat caches removed
 - Optional Web3 disable via `--disable-web3`
+- Optional system policy via `--install-policy` to remove hardcoded UI entries
 
 The script creates backups before editing:
 
 ```text
 ~/.config/BraveSoftware/<profile-root>/debloat-backups/<timestamp>/
 ```
+
+## Enterprise Policy
+
+Some Brave UI entries do not disappear from preferences alone. Wallet is the
+main example: Brave exposes `BraveWalletDisabled`, but it must be installed as a
+managed policy.
+
+`--install-policy` writes:
+
+```text
+/etc/brave/policies/managed/brave-debloat.json
+```
+
+It uses `pkexec` or `sudo` when the script is not running as root.
 
 ## Launcher
 
