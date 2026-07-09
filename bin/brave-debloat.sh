@@ -11,6 +11,7 @@ Options:
   --profile-name NAME      Profile directory inside the root. Default: Default
   --disable-web3           Also disable Brave Wallet/Web3 provider and remove local wallet cache.
   --install-policy         Install Brave enterprise policy using pkexec/sudo when needed.
+  --blank-ntp              Replace Brave's New Tab dashboard with about:blank.
   --no-launcher            Do not create local low-bloat launcher and .desktop overrides.
   --dry-run                Print targets and exit before changing files.
   -h, --help               Show this help.
@@ -33,6 +34,7 @@ PROFILE_NAME="Default"
 DISABLE_WEB3=0
 CREATE_LAUNCHER=1
 INSTALL_POLICY=0
+BLANK_NTP=0
 DRY_RUN=0
 
 while [ "$#" -gt 0 ]; do
@@ -41,6 +43,7 @@ while [ "$#" -gt 0 ]; do
     --profile-name) PROFILE_NAME="${2:-}"; shift 2 ;;
     --disable-web3) DISABLE_WEB3=1; shift ;;
     --install-policy) INSTALL_POLICY=1; shift ;;
+    --blank-ntp) BLANK_NTP=1; shift ;;
     --no-launcher) CREATE_LAUNCHER=0; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage; exit 0 ;;
@@ -75,6 +78,7 @@ log "profile root: $PROFILE_ROOT"
 log "profile name: $PROFILE_NAME"
 log "disable web3: $DISABLE_WEB3"
 log "install policy: $INSTALL_POLICY"
+log "blank new tab: $BLANK_NTP"
 log "launcher: $CREATE_LAUNCHER"
 
 if [ "$DRY_RUN" -eq 1 ]; then
@@ -95,7 +99,7 @@ cp -a "$STATE" "$BACKUP_ROOT/Local State"
 log "backup: $BACKUP_ROOT"
 
 tmp="$(mktemp)"
-jq --argjson disable_web3 "$DISABLE_WEB3" '
+jq --argjson disable_web3 "$DISABLE_WEB3" --argjson blank_ntp "$BLANK_NTP" '
   .browser.background_mode = {"enabled": false} |
   .background_mode = {"enabled": false} |
   .alternate_error_pages.enabled = false |
@@ -110,6 +114,7 @@ jq --argjson disable_web3 "$DISABLE_WEB3" '
   .performance_tuning.high_efficiency_mode.enabled = true |
   .performance_tuning.battery_saver_mode.state = 1 |
   .session.restore_on_startup = 5 |
+  .homepage_is_newtabpage = true |
 
   .brave.enable_media_router_on_restart = false |
   .brave.web_discovery_enabled = false |
@@ -126,16 +131,24 @@ jq --argjson disable_web3 "$DISABLE_WEB3" '
   .brave.today.enabled = false |
   .brave.today.opted_in = false |
   .brave.today.should_show_toolbar_button = false |
+  .brave.brave_search."show-ntp-search" = true |
+  .brave.new_tab_page.background.type = "brave" |
+  .brave.new_tab_page.background.random = true |
+  .brave.new_tab_page.show_background_image = true |
+  .brave.new_tab_page.show_clock = true |
   .brave.new_tab_page.show_brave_news = false |
   .brave.new_tab_page.show_rewards = false |
-  .brave.new_tab_page.show_stats = false |
-  .brave.new_tab_page.show_branded_background_image = false |
+  .brave.new_tab_page.show_stats = true |
+  .brave.new_tab_page.show_branded_background_image = true |
   .brave.new_tab_page.show_together = false |
-  .ntp.hide_all_widgets = true |
+  .ntp.hide_all_widgets = false |
+  .ntp.new_tab_page_show_background_image = true |
+  .ntp.show_background_image = true |
+  .ntp.show_clock = true |
   .ntp.show_brave_news = false |
   .ntp.show_rewards = false |
-  .ntp.show_sponsored_images = false |
-  .ntp.show_stats = false |
+  .ntp.show_sponsored_images = true |
+  .ntp.show_stats = true |
 
   .brave.wallet.show_wallet_icon_on_toolbar = false |
   .brave.wallet.default_wallet = 0 |
@@ -166,6 +179,7 @@ jq --argjson disable_web3 "$DISABLE_WEB3" '
   .omnibox.ai_mode_omnibox_entry_point = false |
   .autocomplete.ai_mode_omnibox_entry_point = false |
 
+  .brave.ad_block.developer_mode = false |
   .profile.default_content_setting_values.notifications = 2 |
   .profile.default_content_setting_values.geolocation = 2 |
   .profile.default_content_setting_values.background_sync = 2 |
@@ -184,6 +198,19 @@ jq --argjson disable_web3 "$DISABLE_WEB3" '
     .profile.default_content_setting_values.brave_solana = 2 |
     .profile.default_content_setting_values.brave_cardano = 2 |
     .profile.default_content_setting_values.brave_wallet = 2
+  else . end |
+  if $blank_ntp == 1 then
+    .homepage = "about:blank" |
+    .homepage_is_newtabpage = false |
+    .brave.new_tab_page.background.type = "none" |
+    .brave.new_tab_page.show_background_image = false |
+    .brave.new_tab_page.show_clock = false |
+    .brave.new_tab_page.show_stats = false |
+    .brave.brave_search."show-ntp-search" = false |
+    .ntp.hide_all_widgets = true |
+    .ntp.show_background_image = false |
+    .ntp.show_clock = false |
+    .ntp.show_stats = false
   else . end
 ' "$PREFS" > "$tmp"
 mv "$tmp" "$PREFS"
@@ -289,7 +316,6 @@ exec "$BRAVE_BIN" \\
   --disable-background-networking \\
   --disable-sync \\
   --disable-default-apps \\
-  --disable-brave-extension \\
   --disable-breakpad \\
   --disable-crash-reporter \\
   --disable-component-extensions-with-background-pages \\
@@ -355,12 +381,18 @@ if [ "$INSTALL_POLICY" -eq 1 ]; then
   "SyncDisabled": true,
   "DefaultNotificationsSetting": 2,
   "DefaultGeolocationSetting": 2,
-  "NewTabPageLocation": "about:blank",
-  "HomepageLocation": "about:blank",
-  "HomepageIsNewTabPage": false,
   "RestoreOnStartup": 5
 }
 EOF
+  if [ "$BLANK_NTP" -eq 1 ]; then
+    tmp_policy="$(mktemp)"
+    jq '. + {
+      "NewTabPageLocation": "about:blank",
+      "HomepageLocation": "about:blank",
+      "HomepageIsNewTabPage": false
+    }' "$POLICY_TMP" > "$tmp_policy"
+    mv "$tmp_policy" "$POLICY_TMP"
+  fi
   if [ "$(id -u)" -eq 0 ]; then
     mkdir -p /etc/brave/policies/managed
     install -m 0644 -o root -g root "$POLICY_TMP" /etc/brave/policies/managed/brave-debloat.json

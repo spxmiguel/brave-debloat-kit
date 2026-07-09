@@ -45,6 +45,13 @@ items such as Wallet from the app menu and settings sidebar:
 ./bin/brave-debloat.sh --install-policy
 ```
 
+Keep Brave's New Tab dashboard by default, including wallpaper and the native
+blocked ads/trackers stats. If you want a blank New Tab instead:
+
+```bash
+./bin/brave-debloat.sh --blank-ntp
+```
+
 Target Brave Nightly explicitly:
 
 ```bash
@@ -90,6 +97,10 @@ managed policy.
 ```
 
 It uses `pkexec` or `sudo` when the script is not running as root.
+
+The policy does not replace New Tab by default. That is intentional: Brave's New
+Tab dashboard is where the built-in blocker stats live. Use `--blank-ntp` only
+if you prefer a fully empty tab.
 
 ## Launcher
 
