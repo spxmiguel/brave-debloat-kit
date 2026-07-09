@@ -2,6 +2,23 @@
 
 Opinionated Brave cleanup for Linux desktops.
 
+## One Command
+
+Recommended cleanup, keeping Brave's wallpaper New Tab and native blocker stats:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/spxmiguel/brave-debloat-kit/main/bin/brave-debloat.sh | bash -s -- --install-policy
+```
+
+Full cleanup for people who do not use Brave Wallet/Web3:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/spxmiguel/brave-debloat-kit/main/bin/brave-debloat.sh | bash -s -- --install-policy --disable-web3
+```
+
+The policy step may ask for your system password because Brave only removes
+hardcoded UI entries like Wallet from the menu through managed policy.
+
 It disables Brave Ads, Rewards, Wallet UI, Brave News/Today, Leo/AI Chat, Talk
 entrypoints, background mode, sync clutter, telemetry/P3A leftovers, and several
 background-heavy Chromium/Brave features. It also removes generated caches such
